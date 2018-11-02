@@ -139,7 +139,7 @@ module.exports.authorize = (req, res) => {
 }
 module.exports.broadcastmessages = (req, res) => {
     var broadcastmessages = require('../model').broadcastmessages
-    broadcastmessages.find({}).toArray((err, _messages) => {
+    broadcastmessages.find({ to: req.session.user.roll_no }).toArray((err, _messages) => {
         var data = { messages: [] }, key = req.session.user.key
         if (_messages) _messages.forEach(message => {
             message.message = crypto.encrypt(message.message, key)
