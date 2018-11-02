@@ -1,0 +1,287 @@
+<html>
+
+<head>
+    <title>Faculty Section</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <script src="/jquery.js"></script>
+    <link rel="stylesheet" href="/css/bootstrap.css">
+    <script src="/js/bootstrap.js"></script>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.4.1/css/all.css" integrity="sha384-5sAR7xN1Nv6T6+dT2mhtzEpVJvfS3NScPQTrOxhwjIuvcA67KV2R5Jz6kr4abQsz"
+        crossorigin="anonymous">
+    <script src="/socket.io.js"></script>
+</head>
+<script src="/crypto-js.js"></script>
+<script>
+    countBits = (n) => { return parseInt(Math.log2(n) + 1) }
+    compute = (G, a, P) => {
+        if (a == 0) { return 1 }
+        if (a % 2 == 0) {
+            ans = compute(G, a / 2, P)
+            ans *= ans
+            return ans % P
+        }
+        ans = (G % P) * compute(G, a - 1, P)
+        ans = ans % P
+        return ans
+    }
+    const P = parseInt('<?- data.P ?>'),
+        G = parseInt('<?- data.G ?>'), min = parseInt('<?- data.min ?>'), max = parseInt('<?- data.max ?>')
+    const a = Math.floor((Math.random() * max) + min)
+    console.log({ G: G, a: a, P: P })
+    const x = compute(G, a, P)
+    const y = parseInt('<?- data.y ?>')
+    console.log({ x: x, y: y })
+    $.ajax({
+        type: 'post',
+        url: '/faculty/mykey',
+        data: { x: x },
+        headers: {
+            'CSRF-Token': '<?-csrfToken?>'
+        },
+    })
+    const key = compute(y, a, P).toString()
+    console.log({ key: key })
+    console.log({ size: countBits(parseInt(key)) })
+    encrypt = (message, key) => {
+        return CryptoJS.AES.encrypt(message, key).toString()
+    }
+    decrypt = (ciphertext, key) => {
+        return CryptoJS.AES.decrypt(ciphertext, key).toString(CryptoJS.enc.Utf8)
+    }
+</script>
+<style>
+    .card-body{
+        overflow-y: scroll;
+    }
+    .card-body::-webkit-scrollbar {
+        width: 8px;
+    }
+    .card-body::-webkit-scrollbar-thumb {
+        border-radius: 10px;
+        -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5); 
+    }
+</style>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark" id="nav">
+        <span class="navbar-brand">AssistsU Chat</span>
+        <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#nav-content">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="nav-content">
+            <div class="dropdown ml-auto">
+                <button type="button" class="btn btn-info dropdown-toggle" data-toggle="dropdown">
+                    <?=data.name?>
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="/faculty/signout">Signout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-2" style="padding:0%">
+                <div class="card" style="height:91%;border-radius: 0%">
+                    <div class="list-group">
+                        <a id="broadcast-messages-nav" href=javascript:show('broadcast-messages') class="list-group-item list-group-item-action active">
+                            Broadcast Messages
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-10" style="padding:0%">
+                <div class="chat-tabs">
+                    <div id="broadcast-messages-tab" class="messages-tab">
+                        <div class="card" style="height:91%;border-radius: 0%">
+                            <div class="card-body">
+                                <div id="broadcast-messages"></div>
+                            </div>
+                            <div class="card-footer">
+                                <form id="send" onsubmit="broadcast(this);return false;" style="margin:0%;">
+                                    <div class="input-group">
+                                        <input id="message" type="text" class="form-control" placeholder="Type your message here..."
+                                            required autofocus autocomplete="off">
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-info" type="submit">
+                                                <i class="fab fa-telegram-plane"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+    show = (id) => {
+        $('.list-group-item').removeClass('active')
+        $(`#${id}-nav`).addClass('active')
+        $(".messages-tab").hide()
+        $(`#${id}-tab`).show()
+    }
+    getBroadcastMessages = () => {
+        $.ajax({
+            url: '/faculty/broadcastmessages',
+            type: 'post',
+            headers: {
+                'CSRF-Token': '<?-csrfToken?>'
+            },
+        }).done((data) => {
+            var messages = data.data.messages
+            messages.forEach(message => {
+                addMessage(message, 'broadcast')
+            })
+            scroll('broadcast-messages')
+        })
+    }, getBroadcastMessages()
+    getMessages = () => {
+        $.ajax({
+            url: '/faculty/messages',
+            type: 'post',
+            headers: {
+                'CSRF-Token': '<?-csrfToken?>'
+            },
+        }).done((data) => {
+            var messages = data.data.messages
+            messages.forEach(message => {
+                var tab;
+                if (message.from == myno)
+                    tab = message.to
+                else
+                    tab = message.from
+                addMessage(message, tab)
+            })
+            scroll('faculty-messages')
+        })
+    }, getMessages()
+</script>
+<script>
+    messageTabHtml = `
+    <div id="<to>-messages-tab" class="messages-tab" style="display:none">
+        <div class="card" style="height:91%;border-radius: 0%">
+            <div class="card-body">
+                <div id="<to>-messages"></div>
+            </div>
+            <div class="card-footer">
+                <form id="send" onsubmit="send(this);return false;" style="margin:0%;">
+                    <div class="input-group">
+                        <input type="hidden" name="to" value="<to>">
+                        <input name="message" type="text" class="form-control" placeholder="Type your message here..."
+                            required autocomplete="off">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-info" type="submit">
+                                <i class="fab fa-telegram-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>`
+    navTabHtml = `
+    <a id="_to_-messages-nav" href='javascript:show("_to_-messages")' class="list-group-item list-group-item-action">
+        totab
+    </a>`
+    myno = '<?- data.roll_no ?>'
+    messageBoxHtml = `
+    <div class="d-flex justify-content-div_align">
+        <div class="card bg-light text-text-align" style="margin:5px;padding:10px;width:max-content;">
+            <code>from</code>
+            <code class='text-dark'>message</code>
+            <small class="text-muted">created_at</small>
+        </div>
+    </div>`
+    addMessage = (data, tab) => {
+        console.log(data)
+        var content = messageBoxHtml.replace('message', decrypt(data.message, key))
+            .replace('div_align', (data.from == myno) ? 'end' : 'left')
+            .replace('text-align', (data.from == myno) ? 'right' : 'left')
+            .replace('created_at', new Date(data.time).toLocaleTimeString('en-us'))
+            .replace('from', (tab == 'broadcast') ? ((data.from != myno) ? `<a href=javascript:show('${data.from}-messages')>${data.name} (${data.from})</a>` : 'You') : '')
+        if ($(`#${tab}-messages`).length == 0) {
+            createTab(tab, data.name)
+        }
+        $(`#${tab}-messages`).append(content)
+    }
+    createTab = (tab, name) => {
+        var content = navTabHtml.replace(/totab/g, `${name} (${tab})`).replace(/_to_/g, tab)
+        $('.list-group').append(content)
+        content = messageTabHtml.replace(/<to>/g, tab)
+        $('.chat-tabs').append(content)
+    }
+    var students = JSON.parse('<?- JSON.stringify(data.students) ?>')
+    console.log(students)
+    students.forEach(student => {
+        createTab(student.roll_no, student.name)
+    })
+    scroll = (tab) => {
+        $(`.${tab}`).animate({
+            scrollTop: $(`.${tab}`).prop("scrollHeight")
+        }, 1000)
+    }
+    broadcast = (form) => {
+        var message = $("#message").val()
+        message = encrypt(message, key)
+        $.ajax({
+            type: 'POST',
+            url: '/faculty/broadcastmessage',
+            data: { message: message },
+            headers: {
+                'CSRF-Token': '<?-csrfToken?>'
+            },
+        }).done((data) => {
+            addMessage(data, 'broadcast')
+            $(form).trigger('reset')
+            scroll('broadcast-messages')
+        })
+    }
+    send = (form) => {
+        var content = $(form).serializeArray()
+        var data = {}
+        data[content[0]['name']] = content[0]['value']
+        data[content[1]['name']] = content[1]['value']
+        data.message = encrypt(data.message, key)
+        $.ajax({
+            type: 'POST',
+            url: '/faculty/message',
+            data: data,
+            headers: {
+                'CSRF-Token': '<?-csrfToken?>'
+            },
+        }).done((data) => {
+            addMessage(data, data.to)
+            $(form).trigger('reset')
+            scroll('faculty-messages')
+        })
+    }
+</script>
+<script>
+    socket = io()
+    socket.on('connect', () => {
+        $.ajax({
+            type: 'POST',
+            url: '/faculty/authorizeme',
+            data: { 'socketID': socket.id },
+            headers: {
+                'CSRF-Token': '<?-csrfToken?>'
+            },
+        })
+    })
+    socket.on('group-<?- data.facultyID ?>', (data) => {
+        addMessage(data, 'broadcast')
+    })
+    socket.on(myno, (data) => {
+        addMessage(data, data.from)
+    })
+    socket.on('disconnect', (err) => {
+        location.replace('/faculty')
+    })
+</script>
+
+</html>
