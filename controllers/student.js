@@ -146,7 +146,8 @@ module.exports.broadcastmessage = (req, res) => {
         name: req.session.user.name,
         from: req.session.user.roll_no,
         message: xss(crypto.decrypt(req.body.message, req.session.user.key)),
-        time: new Date()
+        time: new Date(),
+        to: req.body.to
     }
     tMessage = Object.assign({}, newMessage)
     tMessage.message = crypto.encrypt(tMessage.message, req.session.user.key)
