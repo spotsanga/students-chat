@@ -212,7 +212,7 @@
         $.ajax({
             type: 'POST',
             url: '/student/broadcastmessage',
-            data: { message: message },
+            data: { message: message, to: '<?- data.facultyID ?>' },
             headers: {
                 'CSRF-Token': '<?-csrfToken?>'
             },
